@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>VR Templo de Jade - Guadalupe</title>
+<script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+</head>
+
+<body>
+
+<!-- BOTÓN VR -->
+<button onclick="document.querySelector('a-scene').enterVR()"
+style="position:absolute; top:20px; left:20px; z-index:999;">
+ENTRAR A VR
+</button>
+
+<a-scene vr-mode-ui="enabled: true"
+         xr-mode-ui="enabled: true"
+         renderer="antialias: true">
+
+<a-assets>
+
+<img id="img1" src="https://picsum.photos/id/1011/300/300">
+<img id="img2" src="https://picsum.photos/id/1012/300/300">
+<img id="img3" src="https://picsum.photos/id/1013/300/300">
+<img id="img4" src="https://picsum.photos/id/1015/300/300">
+<img id="img5" src="https://picsum.photos/id/1016/300/300">
+<img id="img6" src="https://picsum.photos/id/1018/300/300">
+
+<img id="backCard" src="https://cdn.pixabay.com/photo/2017/01/10/14/05/stone-1969234_1280.jpg">
+
+<audio id="sound-flip" src="https://cdn.freesound.org/previews/240/240776_4107740-lq.mp3"></audio>
+<audio id="sound-match" src="https://cdn.freesound.org/previews/511/511441_11105151-lq.mp3"></audio>
+<audio id="sound-error" src="https://cdn.freesound.org/previews/142/142608_1840739-lq.mp3"></audio>
+
+<audio id="miAudio" src="martin_xm-elevating-time-263196.mp3"></audio>
+
+</a-assets>
+
+<!-- AUDIO -->
+<a-entity id="audio-fondo"
+sound="src: #miAudio; loop: true; volume: 0.6">
+</a-entity>
+
+<a-light type="ambient" color="#443322"></a-light>
+<a-light type="point" intensity="1.2" position="0 5 2" color="#ffaa55"></a-light>
+
+<!-- RIG VR -->
+<a-entity id="rig" position="0 0 5">
+
+<a-entity camera look-controls position="0 1.6 0">
+
+<a-entity cursor="fuse: true; fuseTimeout: 1200"
+position="0 0 -1"
+geometry="primitive: ring; radiusInner: 0.02; radiusOuter: 0.03"
+material="color: #ffd700"
+raycaster="objects: .interact">
+</a-entity>
+
+<a-text id="score" value="TESOROS: 0" position="-1.2 0.8 -1" scale="0.4 0.4 0.4" color="#ffd700"></a-text>
+<a-text id="lives" value="CORAZONES: 5" position="-1.2 0.6 -1" scale="0.4 0.4 0.4" color="#ff4444"></a-text>
+<a-text id="timer" value="ARENA: 30" position="0.5 0.8 -1" scale="0.4 0.4 0.4" color="#ffffff"></a-text>
+
+</a-entity>
+
+<!-- CONTROLADORES VR -->
+<a-entity laser-controls="hand: left" raycaster="objects: .interact"></a-entity>
+<a-entity laser-controls="hand: right" raycaster="objects: .interact"></a-entity>
+
+</a-entity>
+
+<a-entity id="audio-flip" sound="src: #sound-flip"></a-entity>
+<a-entity id="audio-match" sound="src: #sound-match"></a-entity>
+<a-entity id="audio-error" sound="src: #sound-error"></a-entity>
+
+<a-sky color="#1a1005"></a-sky>
+
+<a-plane rotation="-90 0 0"
+width="50"
+height="50"
+color="#222">
+</a-plane>
+
+<!-- TABLERO AJUSTADO PARA VR -->
+<a-entity id="board" position="-1.6 1.5 -3"></a-entity>
+
+<!-- PANTALLA FINAL -->
+<a-entity id="msg-screen" position="0 2 -2" visible="false">
+
+<a-plane width="4" height="2.5" color="#2b1d0e" opacity="0.95"></a-plane>
+
+<a-text id="msg-text"
+value=""
+align="center"
+position="0 0.5 0.1"
+scale="1.5 1.5 1.5">
+</a-text>
+
+<a-box id="reset-btn"
+class="interact"
+width="2"
+height="0.6"
+depth="0.1"
+color="#ffd700"
+position="0 -0.5 0.1">
+
+<a-text value="VOLVER A INTENTAR"
+align="center"
+position="0 0 0.06"
+scale="0.4 0.4 0.4"
+color="black">
+</a-text>
+
+</a-box>
+
+</a-entity>
+
+</a-scene>
+
+<script>
+
+const board = document.querySelector('#board');
+const scoreEl = document.querySelector('#score');
+const livesEl = document.querySelector('#lives');
+const timerEl = document.querySelector('#timer');
+const msgScreen = document.querySelector('#msg-screen');
+const msgText = document.querySelector('#msg-text');
+const resetBtn = document.querySelector('#reset-btn');
+
+let score = 0;
+let lives = 5;
+let timeLeft = 30;
+let selectedCards = [];
+let canPick = true;
+let gameActive = true;
+
+const images = ['#img1','#img2','#img3','#img4','#img5','#img6'];
+let deck = [...images,...images].sort(()=>Math.random()-0.5);
+
+deck.forEach((imgId,i)=>{
+
+const x=(i%4)*1.1;
+const y=Math.floor(i/4)*-1.2;
+
+const card=document.createElement('a-box');
+
+card.setAttribute('class','interact');
+card.setAttribute('position',`${x} ${y} 0`);
+card.setAttribute('width','1');
+card.setAttribute('height','1');
+card.setAttribute('depth','0.2');
+card.setAttribute('src','#backCard');
+
+card.dataset.imgId=imgId;
+
+card.addEventListener('click',()=>flipCard(card));
+
+board.appendChild(card);
+
+});
+
+function playSound(id){
+const s=document.querySelector(id);
+if(s && s.components.sound){
+s.components.sound.playSound();
+}
+}
+
+function flipCard(card){
+
+if(!canPick || !gameActive || selectedCards.includes(card)) return;
+
+playSound('#audio-flip');
+
+card.setAttribute('src',card.dataset.imgId);
+
+selectedCards.push(card);
+
+if(selectedCards.length===2){
+
+canPick=false;
+setTimeout(checkMatch,700);
+
+}
+
+}
+
+function checkMatch(){
+
+const[c1,c2]=selectedCards;
+
+if(c1.dataset.imgId===c2.dataset.imgId){
+
+score++;
+scoreEl.setAttribute('value',`TESOROS: ${score}`);
+
+playSound('#audio-match');
+
+}else{
+
+lives--;
+livesEl.setAttribute('value',`CORAZONES: ${lives}`);
+
+playSound('#audio-error');
+
+c1.setAttribute('src','#backCard');
+c2.setAttribute('src','#backCard');
+
+if(lives<=0){
+endGame("SIN OPORTUNIDADES","#ff4444");
+}
+
+}
+
+selectedCards=[];
+canPick=true;
+
+}
+
+function endGame(text,color){
+
+gameActive=false;
+
+msgText.setAttribute('value',text);
+msgText.setAttribute('color',color);
+
+msgScreen.setAttribute('visible','true');
+
+}
+
+resetBtn.addEventListener("click",()=>{
+location.reload();
+});
+
+setInterval(()=>{
+
+if(!gameActive) return;
+
+timeLeft--;
+timerEl.setAttribute('value',`ARENA: ${timeLeft}`);
+
+if(timeLeft<=0){
+endGame("TIEMPO AGOTADO","#ff0000");
+}
+
+},1000);
+
+<!-- AUDIO EN VR -->
+document.querySelector('a-scene').addEventListener('enter-vr', ()=>{
+const audio=document.querySelector("#audio-fondo");
+if(audio && audio.components.sound){
+audio.components.sound.playSound();
+}
+});
+
+</script>
+
+</body>
+</html>
